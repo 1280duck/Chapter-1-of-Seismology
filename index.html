@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>高階地震物理學互動教程 (Advanced Seismophysics)</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        slate: {
+                            50: '#f8fafc',
+                            100: '#f1f5f9',
+                            200: '#e2e8f0',
+                            800: '#1e293b',
+                            900: '#0f172a',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <script>
+        MathJax = {
+            tex: {
+                inlineMath: [['$', '$'], ['\\(', '\\)']],
+                displayMath: [['$$', '$$'], ['\\[', '\\]']]
+            },
+            startup: {
+                pageReady: () => {
+                    return MathJax.startup.defaultPageReady();
+                }
+            }
+        };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        body { background-color: #f8fafc; color: #334155; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .math-block { background-color: #f1f5f9; padding: 1rem; border-radius: 0.5rem; margin: 1rem 0; overflow-x: auto; border-left: 4px solid #3b82f6; color: #1e293b; }
+        .custom-scrollbar::-webkit-scrollbar { width: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        .glass-panel { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); border: 1px solid rgba(0, 0, 0, 0.05); }
+        
+        /* 1. 地震波動畫樣式 */
+        .animate-seismic-wave {
+            stroke-dasharray: 1500;
+            stroke-dashoffset: 1500;
+            animation: drawWave 2.5s ease-out forwards;
+        }
+        @keyframes drawWave {
+            to { stroke-dashoffset: 0; }
+        }
+
+        /* 2. 建築共振動畫樣式 */
+        @keyframes sway-fast {
+            0% { transform: rotate(0deg); }
+            25% { transform: rotate(8deg); }
+            50% { transform: rotate(-8deg); }
+            75% { transform: rotate(8deg); }
+            100% { transform: rotate(0deg); }
+        }
+        @keyframes sway-slow {
+            0% { transform: rotate(0deg); }
+            50% { transform: rotate(15deg); }
+            100% { transform: rotate(0deg); }
+        }
+        .resonance-high { animation: sway-fast 0.3s ease-in-out infinite; transform-origin: bottom center; }
+        .resonance-low { animation: sway-slow 1.5s ease-in-out infinite; transform-origin: bottom center; }
+        
+        /* 3. 斷層錯動動畫樣式 */
+        .fault-strain { transition: all 1s ease-in-out; }
+        .fault-snap { animation: snap-shake 0.4s ease-out; }
+        @keyframes snap-shake {
+            0% { transform: translate(0, 0); }
+            25% { transform: translate(-10px, 10px); }
+            50% { transform: translate(10px, -10px); }
+            75% { transform: translate(-5px, 5px); }
+            100% { transform: translate(0, 0); }
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        const topics = [
+            { id: 1, title: "1. 地震學研究範疇", icon: "globe" },
+            { id: 2, title: "2. 幾何震波與觀測模型", icon: "activity" },
+            { id: 3, title: "3. Hazard 危害與 Risk 風險", icon: "alert-triangle" },
+            { id: 4, title: "4. 震波能量衰減物理機制", icon: "trending-down" },
+            { id: 5, title: "5. 地震危害度評估", icon: "map" },
+            { id: 6, title: "6. 結構共振與頻譜響應", icon: "bar-chart-2" },
+            { id: 7, title: "7. 土壤液化之有效應力機制", icon: "droplet" },
+            { id: 8, title: "8. 預報 (Forecasting) vs. 預測", icon: "calendar" },
+            { id: 9, title: "9. 彈性回跳與 Seismic Gap", icon: "scissors" },
+            { id: 10, title: "10. 地震前兆與預測物理機制", icon: "search" },
+            { id: 11, title: "11. 矩張量分解與核爆監測", icon: "crosshair" },
+        ];
+
+        // 從 GitHub 讀取原始圖片檔案的網址產生器
+        const getImageUrl = (id) => `https://raw.githubusercontent.com/1280duck/Chapter-1-of-Seismology/main/Fig.%20${id}%20.png`;
+
+        // 具有錯誤處理與加載樣式的圖片元件
+        const SeismicImage = ({ id, alt }) => {
+            const [hasError, setHasError] = useState(false);
+            
+            useEffect(() => {
+                if (window.lucide) {
+                    window.lucide.createIcons();
+                }
+            }, [hasError]);
+
+            return (
+                <div className="w-full bg-white rounded-lg border border-slate-200 flex flex-col items-center justify-center my-6 shadow-sm overflow-hidden">
+                    {!hasError ? (
+                        <img 
+                            src={getImageUrl(id)} 
+                            alt={alt} 
+                            className="w-full h-auto max-h-[600px] object-contain bg-slate-50"
+                            onError={() => setHasError(true)} 
+                        />
+                    ) : (
+                        <div className="p-12 flex flex-col items-center justify-center text-slate-400 w-full bg-slate-50">
+                            <i data-lucide="image-off" className="w-12 h-12 mb-3"></i>
+                            <span className="text-sm font-medium text-slate-500">圖片載入失敗，請確認 GitHub 檔名</span>
+                            <span className="text-xs mt-2 text-slate-400 text-center break-all px-4">{getImageUrl(id)}</span>
+                        </div>
+                    )}
+                    <div className="p-3 w-full bg-slate-100 border-t border-slate-200 text-center text-sm text-slate-700 font-bold">
+                        {alt}
+                    </div>
+                </div>
+            );
+        };
+
+        // --- 動畫組件 1: 地震波 ---
+        const InteractiveWave = () => {
+            const [trigger, setTrigger] = useState(0);
+            return (
+                <div 
+                    className="w-full h-56 bg-white rounded-xl overflow-hidden relative flex flex-col items-center justify-center border border-slate-200 my-8 shadow-sm cursor-pointer hover:shadow-md transition-shadow group"
+                    onClick={() => setTrigger(prev => prev + 1)}
+                    title="點擊畫面重新觸發地震波"
+                >
+                    <div className="absolute top-4 left-5 text-sm font-bold text-blue-600 flex items-center">
+                        <i data-lucide="mouse-pointer-click" className="w-4 h-4 mr-2"></i>
+                        點擊此區域觸發地震波模擬 (P波與S波)
+                    </div>
+                    <svg width="100%" height="100%" viewBox="0 0 1000 200" preserveAspectRatio="none" key={trigger} className="mt-8">
+                        <line x1="0" y1="100" x2="1000" y2="100" stroke="#cbd5e1" strokeWidth="1" strokeDasharray="5,5" />
+                        <path 
+                            d="M 0,100 L 100,100 
+                               L 110,80 L 120,120 L 130,70 L 140,130 L 150,90 L 160,110 L 200,100 
+                               L 250,100 L 270,30 L 300,180 L 330,20 L 370,160 L 410,40 L 450,140 L 500,60 L 550,120 L 600,80 L 650,110 L 700,95 L 750,105 L 800,100 
+                               L 1000,100"
+                            fill="none" stroke="#3b82f6" strokeWidth="3" strokeLinejoin="round" className="animate-seismic-wave" 
+                        />
+                        <text x="125" y="50" fill="#64748b" fontSize="14" fontWeight="bold">P波 (縱波，波速快)</text>
+                        <text x="350" y="15" fill="#ef4444" fontSize="14" fontWeight="bold">S波 (橫波/剪力波，破壞力強)</text>
+                    </svg>
+                    <div className="absolute bottom-3 right-4 text-xs text-slate-400 group-hover:text-blue-500 transition-colors">點擊畫面重播動畫</div>
+                </div>
+            );
+        };
+
+        // --- 動畫組件 2: 結構共振 ---
+        const InteractiveResonance = () => {
+            const [earthquakeType, setEarthquakeType] = useState('none'); // 'highFreq', 'lowFreq', 'none'
+
+            return (
+                <div className="w-full bg-slate-100 rounded-xl p-6 my-8 border border-slate-200 shadow-inner text-center">
+                    <h4 className="font-bold text-slate-700 mb-4 flex justify-center items-center">
+                        <i data-lucide="activity" className="w-5 h-5 mr-2 text-blue-500"></i>
+                        互動模擬：場址效應與結構共振
+                    </h4>
+                    <div className="flex justify-center space-x-4 mb-8">
+                        <button 
+                            onClick={() => setEarthquakeType('highFreq')}
+                            className="px-4 py-2 bg-blue-100 text-blue-700 font-semibold rounded shadow hover:bg-blue-200 transition-colors border border-blue-300">
+                            發出高頻地震波 (淺源/近震)
+                        </button>
+                        <button 
+                            onClick={() => setEarthquakeType('lowFreq')}
+                            className="px-4 py-2 bg-red-100 text-red-700 font-semibold rounded shadow hover:bg-red-200 transition-colors border border-red-300">
+                            發出低頻地震波 (盆地效應/遠震)
+                        </button>
+                        <button 
+                            onClick={() => setEarthquakeType('none')}
+                            className="px-4 py-2 bg-slate-200 text-slate-600 font-semibold rounded shadow hover:bg-slate-300 transition-colors">
+                            停止震動
+                        </button>
+                    </div>
+
+                    <div className="flex items-end justify-center space-x-12 h-64 border-b-4 border-slate-400 pb-1 relative">
+                        {/* 矮樓 (高頻共振) */}
+                        <div className={`w-16 bg-gradient-to-t from-slate-400 to-slate-300 border-2 border-slate-500 rounded-t flex flex-col justify-end p-1 space-y-1 ${earthquakeType === 'highFreq' ? 'resonance-high' : ''}`} style={{height: '80px'}}>
+                            <div className="w-full h-4 bg-slate-100 opacity-50"></div>
+                            <div className="w-full h-4 bg-slate-100 opacity-50"></div>
+                        </div>
+                        {/* 中樓 */}
+                        <div className="w-16 bg-gradient-to-t from-blue-400 to-blue-300 border-2 border-blue-500 rounded-t flex flex-col justify-end p-1 space-y-1" style={{height: '150px'}}>
+                            <div className="w-full h-4 bg-blue-100 opacity-50"></div>
+                            <div className="w-full h-4 bg-blue-100 opacity-50"></div>
+                            <div className="w-full h-4 bg-blue-100 opacity-50"></div>
+                            <div className="w-full h-4 bg-blue-100 opacity-50"></div>
+                        </div>
+                        {/* 高樓 (低頻共振) */}
+                        <div className={`w-16 bg-gradient-to-t from-red-400 to-red-300 border-2 border-red-500 rounded-t flex flex-col justify-end p-1 space-y-1 ${earthquakeType === 'lowFreq' ? 'resonance-low' : ''}`} style={{height: '240px'}}>
+                            <div className="w-full h-4 bg-red-100 opacity-50"></div>
+                            <div className="w-full h-4 bg-red-100 opacity-50"></div>
+                            <div className="w-full h-4 bg-red-100 opacity-50"></div>
+                            <div className="w-full h-4 bg-red-100 opacity-50"></div>
+                            <div className="w-full h-4 bg-red-100 opacity-50"></div>
+                            <div className="w-full h-4 bg-red-100 opacity-50"></div>
+                            <div className="w-full h-4 bg-red-100 opacity-50"></div>
+                        </div>
+                    </div>
+                    <div className="flex justify-center space-x-12 mt-2 text-sm font-bold text-slate-500">
+                        <div className="w-16 text-center">矮房<br/>$T_n \approx 0.2s$</div>
+                        <div className="w-16 text-center">中樓房<br/>$T_n \approx 1.0s$</div>
+                        <div className="w-16 text-center">超高層<br/>$T_n \approx 3.0s$</div>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- 動畫組件 3: 彈性回跳理論 ---
+        const InteractiveRebound = () => {
+            const [stage, setStage] = useState(0); // 0: 原狀, 1: 應變累積, 2: 破裂
+            
+            let d1 = "M 200,50 L 200,250"; // 基準線
+            let strokeColor = "#3b82f6";
+            
+            if (stage === 1) {
+                d1 = "M 150,50 Q 200,150 250,250"; // 彎曲變形
+                strokeColor = "#eab308";
+            } else if (stage === 2) {
+                d1 = "M 150,50 L 150,150 M 250,150 L 250,250"; // 斷開錯位
+                strokeColor = "#ef4444";
+            }
+
+            return (
+                <div className="w-full bg-white rounded-xl p-6 my-8 border border-slate-200 shadow-sm text-center">
+                    <h4 className="font-bold text-slate-700 mb-4">互動模擬：彈性回跳理論 (Elastic Rebound)</h4>
+                    
+                    <div className={`relative h-64 bg-slate-50 border border-slate-200 rounded overflow-hidden flex justify-center items-center ${stage===2 ? 'fault-snap' : ''}`}>
+                        <svg width="400" height="300">
+                            {/* 地表背景裝飾 */}
+                            <rect x="0" y="0" width="400" height="300" fill="#f8fafc" />
+                            {/* 斷層線 */}
+                            <line x1="0" y1="150" x2="400" y2="150" stroke="#94a3b8" strokeWidth="4" strokeDasharray="10,10" />
+                            {/* 應變標記線 */}
+                            <path d={d1} fill="none" stroke={strokeColor} strokeWidth="8" strokeLinecap="round" className="fault-strain" />
+                            
+                            {/* 應力箭頭 */}
+                            {stage === 1 && (
+                                <g className="fault-strain opacity-50">
+                                    <path d="M 50,100 L 100,100 L 90,90 M 100,100 L 90,110" fill="none" stroke="#64748b" strokeWidth="3"/>
+                                    <path d="M 350,200 L 300,200 L 310,190 M 300,200 L 310,210" fill="none" stroke="#64748b" strokeWidth="3"/>
+                                </g>
+                            )}
+                            {/* 地震波爆炸圖示 */}
+                            {stage === 2 && (
+                                <circle cx="200" cy="150" r="30" fill="rgba(239, 68, 68, 0.4)" className="animate-ping" />
+                            )}
+                        </svg>
+                    </div>
+
+                    <div className="flex justify-center space-x-4 mt-6">
+                        <button onClick={() => setStage(0)} className={`px-4 py-2 font-semibold rounded shadow transition-colors ${stage===0 ? 'bg-slate-300 text-slate-800' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                            1. 原始狀態
+                        </button>
+                        <button onClick={() => setStage(1)} className={`px-4 py-2 font-semibold rounded shadow transition-colors ${stage===1 ? 'bg-yellow-400 text-yellow-900' : 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'}`}>
+                            2. 應變累積 (板塊擠壓)
+                        </button>
+                        <button onClick={() => setStage(2)} className={`px-4 py-2 font-semibold rounded shadow transition-colors ${stage===2 ? 'bg-red-500 text-white' : 'bg-red-100 text-red-700 hover:bg-red-200'}`}>
+                            3. 破裂與回跳 (地震發生)
+                        </button>
+                    </div>
+                </div>
+            );
+        };
+
+        // ================= 各章節內容 =================
+        const Content1 = () => (
+            <div>
+                <h2 className="text-3xl font-bold text-blue-800 mb-6 border-b border-slate-200 pb-2">地震學的物理與數學範疇</h2>
+                <p className="mb-4 leading-relaxed text-slate-700 text-lg">
+                    地震學並非單純描述地球震動，而是建構在連續介質力學（Continuum Mechanics）與彈性動力學（Elastodynamics）上的嚴謹科學。其核心研究範疇可分為三大支柱：
+                </p>
+                
+                <InteractiveWave />
+
+                <ul className="list-disc pl-6 space-y-4 mb-6 text-slate-700">
+                    <li><strong className="text-blue-700 text-lg">震波傳播理論 (Wave Propagation Theory)：</strong><br/>探討彈性波（P波、S波、表面波與地球自由震盪）在非均勻、非彈性（Anelastic）及各向異性（Anisotropic）介質中的行為。這涉及解 Navier-Cauchy 運動方程式。</li>
+                    <li><strong className="text-blue-700 text-lg">震源物理 (Source Physics)：</strong><br/>將地震斷層視為破裂力學（Fracture Mechanics）的展現。我們利用矩張量（Moment Tensor）與運動學模型（Kinematic modeling）來反演斷層滑移分佈與破裂方向性效應（Directivity）。</li>
+                    <li><strong className="text-blue-700 text-lg">地球內部構造影像 (Earth Structure Imaging)：</strong><br/>利用觀測到的震波走時（Travel time）與波形，透過逆推理論（Inverse Problem, 例如地震層析成像 Seismic Tomography）重構地函與地核的密度及速度分佈。</li>
+                </ul>
+            </div>
+        );
+
+        const Content2 = () => (
+            <div>
+                <h2 className="text-3xl font-bold text-blue-800 mb-6 border-b border-slate-200 pb-2">觀測幾何與震波路徑解讀</h2>
+                <p className="mb-4 text-slate-700 text-lg">圖 1.1-1 至 1.1-5 展示了地震學將地球內部參數化的基礎幾何與觀測方法：</p>
+                
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 mb-8">
+                    <h3 className="text-xl font-bold text-slate-800 mb-2">圖 1.1-1：幾何示意圖</h3>
+                    <p className="text-slate-600 mb-4">定義了震源（Source）、傳播介質（Medium）與接收站（Receiver）。地震圖（Seismogram）是震源時間函數與介質脈衝響應的卷積（Convolution）： {"$u(t) = s(t) * g(t) * i(t)$"}，其中 {"$i(t)$"} 為儀器響應。</p>
+                    <SeismicImage id="1.1-1" alt="圖 1.1-1 地震實驗的幾何示意圖" />
+                </div>
+
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 mb-8">
+                    <h3 className="text-xl font-bold text-slate-800 mb-2">圖 1.1-2：射線路徑彎曲</h3>
+                    <p className="text-slate-600 mb-4">根據 Snell's Law 的廣義形式（射線參數 {"$p = \\frac{r \\sin i}{v} = constant$"}），因為地球內部波速隨深度增加，震波射線會產生折射，路徑呈現向地表彎曲的特徵。</p>
+                    <SeismicImage id="1.1-2" alt="圖 1.1-2 地震波在地球內部彎曲射線路徑" />
+                </div>
+
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 mb-8">
+                    <h3 className="text-xl font-bold text-slate-800 mb-2">圖 1.1-3：地震圖震相 (Phases)</h3>
+                    <p className="text-slate-600 mb-4">展示了 P, pP, PP, S 及 Rayleigh 表面波。時間差（如 pP-P）是精確推算震源深度（Focal depth）的關鍵觀測量。</p>
+                    <SeismicImage id="1.1-3" alt="圖 1.1-3 長週期垂直分量地震圖" />
+                </div>
+
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 mb-8">
+                    <h3 className="text-xl font-bold text-slate-800 mb-2">圖 1.1-4：核函邊界反射</h3>
+                    <p className="text-slate-600 mb-4">顯示了 ScS 波（S波向下傳遞並在地核-地函邊界 CMB 反射）。多次反射波（如 ScS2, ScS3）為 CMB 的阻抗對比（Impedance contrast）提供了強有力的物理約束。</p>
+                    <SeismicImage id="1.1-4" alt="圖 1.1-4 多重地核反射波 ScS" />
+                </div>
+
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 mb-8">
+                    <h3 className="text-xl font-bold text-slate-800 mb-2">圖 1.1-5：反射震測 (Reflection Seismology)</h3>
+                    <p className="text-slate-600 mb-4">透過人工震源製造垂直入射波，利用共中點疊加（Common Midpoint Stacking）技術增強訊噪比，是探勘地殼淺層幾何構造的標準做法。</p>
+                    <SeismicImage id="1.1-5" alt="圖 1.1-5 反射地震勘探方法示意圖" />
+                </div>
+            </div>
+        );
+
+        const Content3 = () => (
+            <div>
+                <h2 className="text-3xl font-bold text-blue-800 mb-6 border-b border-slate-200 pb-2">Seismic Hazard (危害) 與 Seismic Risk (風險) 之嚴格區別</h2>
+                <p className="mb-4 text-slate-700 text-lg">在工程地震學與政策制定中，混淆 Hazard 與 Risk 是嚴重的錯誤。兩者在物理與統計上的定義截然不同：</p>
+                
+                <div className="bg-white border-l-4 border-blue-500 p-6 rounded shadow-sm mb-6">
+                    <h3 className="text-xl font-bold text-blue-700 mb-2">Seismic Hazard (地震危害度)</h3>
+                    <p className="mb-2 text-slate-700"><strong>本質：</strong>純物理與地質的自然現象，人類無法改變。</p>
+                    <p className="text-slate-700"><strong>定義：</strong>在給定時間 {"$T$"} 內，特定場址發生超過某一特定地震動參數（如 PGA 或 PGV）的機率。其數學表達為：</p>
+                    <div className="math-block">
+                        {"$$\\lambda(y > Y) = \\sum_i \\nu_i \\iint P(y > Y | m, r) f_M(m) f_R(r) \\, dm \\, dr$$"}
+                    </div>
+                    <p className="text-sm text-slate-500">（此為機率式地震危害度分析 PSHA 的核心積分，涉及震源發生率、規模分佈與距離分佈）。</p>
+                </div>
+
+                <div className="bg-white border-l-4 border-red-500 p-6 rounded shadow-sm">
+                    <h3 className="text-xl font-bold text-red-700 mb-2">Seismic Risk (地震風險)</h3>
+                    <p className="mb-2 text-slate-700"><strong>本質：</strong>危害度對人類社會的預期衝擊，可透過工程與政策降低。</p>
+                    <div className="bg-slate-50 p-4 rounded mb-2 font-mono text-center border border-slate-200">
+                        Risk = Hazard × Vulnerability (脆弱度) × Exposure (暴露資產)
+                    </div>
+                    <p className="mt-2 text-slate-700 leading-relaxed">即使在 Hazard 極高的區域（如加州盲斷層上方），若建築物具備高耐震設計（Vulnerability 低），其 Risk 依然可以被控制。反之，Hazard 較低的區域若存在大量劣質磚造建築，其 Risk 可能極高。</p>
+                </div>
+            </div>
+        );
+
+        const Content4 = () => (
+            <div>
+                <h2 className="text-3xl font-bold text-blue-800 mb-6 border-b border-slate-200 pb-2">地震波能量衰減的物理機制</h2>
+                <p className="mb-4 text-slate-700 text-lg">公式 (1) 描述了強地動加速度的衰減關係（Attenuation Relation 或 GMPE）：</p>
+                <div className="math-block">
+                    {"$$a(M, r) = b 10^{cM} r^{-d}$$"}
+                </div>
+                <p className="mb-6 text-slate-700">其中 {"$10^{cM}$"} 代表震源強度的比例縮放（Scaling），{"$r^{-d}$"} 則是空間衰減的主導項。震波在介質中傳播造成振幅衰減，主要由三大物理機制主導：</p>
+                
+                <div className="space-y-6">
+                    <div className="bg-white p-5 rounded-lg shadow-sm border border-slate-200">
+                        <h4 className="font-bold text-blue-700 text-lg mb-2 flex items-center"><i data-lucide="circle-dot" className="w-5 h-5 mr-2"></i> 1. 幾何擴散 (Geometrical Spreading)</h4>
+                        <p className="text-slate-600">這是純粹的幾何效應，無能量損失。體波（Body waves）的波前呈球面擴張，能量密度與 {"$r^2$"} 成反比，振幅則隨 {"$1/r$"} 衰減。表面波（Surface waves）呈圓柱面擴張，振幅隨 {"$1/\\sqrt{r}$"} 衰減，這解釋了為何遠震紀錄中表面波振幅相對較大。</p>
+                    </div>
+
+                    <div className="bg-white p-5 rounded-lg shadow-sm border border-slate-200">
+                        <h4 className="font-bold text-blue-700 text-lg mb-2 flex items-center"><i data-lucide="thermometer" className="w-5 h-5 mr-2"></i> 2. 非彈性/內在衰減 (Intrinsic/Anelastic Attenuation)</h4>
+                        <p className="text-slate-600">地球並非理想彈性體。震波傳播導致岩石晶格間的微觀摩擦與孔隙流體運動，將彈性能轉化為熱能。此衰減以品質因子 {"$Q$"} 描述，振幅衰減項為：</p>
+                        <div className="math-block text-sm">
+                            {"$$A(r) = A_0 \\exp\\left( -\\frac{\\omega r}{2 c Q(\\omega)} \\right)$$"}
+                        </div>
+                        <p className="text-slate-600">其中 {"$\\omega$"} 為角頻率，{"$c$"} 為波速。高頻波段衰減遠快於低頻波段。</p>
+                    </div>
+
+                    <div className="bg-white p-5 rounded-lg shadow-sm border border-slate-200">
+                        <h4 className="font-bold text-blue-700 text-lg mb-2 flex items-center"><i data-lucide="shuffle" className="w-5 h-5 mr-2"></i> 3. 散射衰減 (Scattering Attenuation)</h4>
+                        <p className="text-slate-600">當地殼中存在小尺度的非均質構造（Heterogeneities，如微裂隙、岩性交界）且尺度與波長相近時，波會被散射。這不消耗系統總能量，但會將直接波的能量重新分配到尾波（Coda waves）中。</p>
+                    </div>
+                </div>
+            </div>
+        );
+
+        const Content5 = () => (
+            <div>
+                <h2 className="text-3xl font-bold text-blue-800 mb-6 border-b border-slate-200 pb-2">地震危害度地圖與區域衰減特性</h2>
+                
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 mb-8">
+                    <h3 className="text-xl font-bold text-slate-800 mb-2">圖 1.2-3：美國地震危害度地圖</h3>
+                    <p className="text-slate-600 mb-4">顯示了 50 年內有 2% 超越機率（對應回歸期約 2475 年）的峰值地動加速度（PGA）。此為 PSHA 的空間具現化，板塊邊界（加州）數值極高，但板內地震帶（如新馬德里斷層）同樣呈現高危害區。</p>
+                    <SeismicImage id="1.2-3" alt="圖 1.2-3 美國地震危害度預估地圖" />
+                </div>
+
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 mb-8">
+                    <h3 className="text-xl font-bold text-slate-800 mb-2">圖 1.2-5：美國東部與西部衰減特性差異</h3>
+                    <p className="text-slate-600 mb-4">這是因為地殼品質因子 {"$Q$"} 的區域差異。美國東部屬於古老穩定克拉通（Craton），地殼冷且堅硬，{"$Q$"} 值高（內在衰減低）；美國西部為活躍構造區，地殼熱且破碎，{"$Q$"} 值低。</p>
+                    <div className="bg-blue-50 text-blue-800 p-4 border-l-4 border-blue-500 rounded font-medium mb-4">
+                        結論：美國東部的地震波能傳遞得更遠。一個 M=6 的東部地震，其破壞範圍（震度區）可能與西部 M=7 的地震相當。
+                    </div>
+                    <SeismicImage id="1.2-5" alt="圖 1.2-5 美東與美西加速度隨距離衰減比較圖" />
+                </div>
+
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 mb-8">
+                    <h3 className="text-xl font-bold text-slate-800 mb-2">圖 1.2-6：建築物倒塌機率</h3>
+                    <p className="text-slate-600 mb-4">圖中顯示 Vulnerability (脆弱度) 的差異。無筋磚造在震度 MMI VII 時倒塌率即急遽攀升；而具備抗震設計的鋼筋混凝土（RC）結構，直到 MMI IX 度以上才顯示顯著倒塌機率。這印證了 "Earthquakes don't kill people, buildings do." 的名言。</p>
+                    <SeismicImage id="1.2-6" alt="圖 1.2-6 不同建材建築在各震度下的倒塌機率曲線" />
+                </div>
+            </div>
+        );
+
+        const Content6 = () => (
+            <div>
+                <h2 className="text-3xl font-bold text-blue-800 mb-6 border-b border-slate-200 pb-2">結構共振與頻譜響應 (Spectral Response)</h2>
+                <p className="mb-4 text-slate-700 text-lg">評估建築物抵抗能力，不能只看單一的加速度（PGA），而必須從結構動力學（Structural Dynamics）與共振頻率的角度分析。</p>
+                
+                <InteractiveResonance />
+
+                <h3 className="text-2xl font-bold text-slate-800 mt-8 mb-4">建材的抵抗能力</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                    <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200">
+                        <h4 className="font-bold text-slate-800 border-b pb-2 mb-2">無筋磚造 / 土塊</h4>
+                        <p className="text-sm text-slate-600">缺乏抗拉強度（Tensile strength），面對水平剪力時極易發生脆性破壞（Brittle failure）。</p>
+                    </div>
+                    <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200">
+                        <h4 className="font-bold text-slate-800 border-b pb-2 mb-2">木造框架</h4>
+                        <p className="text-sm text-slate-600">具有極佳的柔韌度與較低的質量（減小慣性力 {"$F=ma$"}），但需注意節點連接的穩固性。</p>
+                    </div>
+                    <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200">
+                        <h4 className="font-bold text-slate-800 border-b pb-2 mb-2">鋼筋混凝土 (RC)</h4>
+                        <p className="text-sm text-slate-600">鋼筋提供極高的抗拉與延展性，混凝土提供抗壓能力。塑性鉸（Plastic hinge）設計允許變形吸收能量。</p>
+                    </div>
+                </div>
+
+                <h3 className="text-2xl font-bold text-slate-800 mt-6 mb-4">建築高度與地震波週期的物理耦合</h3>
+                <p className="mb-2 text-slate-700">每棟建築都有其基本共振週期（Fundamental natural period, {"$T_n$"}），經驗公式約為：</p>
+                <div className="math-block">
+                    {"$$T_n \\approx 0.1 \\times N \\text{ (秒)}$$"}
+                </div>
+                <p className="text-sm text-slate-500 mb-4">({"$N$"} 為樓層數。10層樓約 1秒，20層樓約 2秒)。</p>
+                
+                <div className="bg-amber-50 p-5 rounded-lg border border-amber-200 text-amber-900">
+                    <p className="font-bold mb-2 flex items-center">
+                        <i data-lucide="alert-circle" className="w-5 h-5 mr-2"></i>場址效應與共振 (Site Effect and Resonance)
+                    </p>
+                    <p className="text-sm leading-relaxed">當到達地表的地震波卓越週期（Dominant period）等於建築物的 {"$T_n$"} 時，會發生破壞性的<strong>共振現象</strong>。例如 1985 年墨西哥城地震：震波穿越古湖泊盆地，低頻（約 2 秒週期）被極大化放大。導致當地 6~15 層樓（週期 0.6~1.5 秒）嚴重損毀，反而較矮的磚房與超高層大樓受損較輕。</p>
+                </div>
+            </div>
+        );
+
+        const Content7 = () => (
+            <div>
+                <h2 className="text-3xl font-bold text-blue-800 mb-6 border-b border-slate-200 pb-2">土壤液化的有效應力機制 (Effective Stress Mechanics)</h2>
+                <p className="mb-4 text-slate-700 text-lg">土壤液化（Soil Liquefaction）並非土壤真的變成液體，而是在強烈震動下，土壤力學性質發生急遽變化的物理過程。我們可透過 Terzaghi 的有效應力原理來解釋：</p>
+                
+                <div className="math-block">
+                    {"$$\\sigma' = \\sigma_n - u$$"}
+                </div>
+                <p className="text-slate-600 mb-6 bg-slate-100 p-4 rounded-lg">
+                    其中，{"$\\sigma'$"} 為骨架承載的有效應力（Effective Stress），{"$\\sigma_n$"} 為總應力（Total Stress，由上覆岩土重量決定），{"$u$"} 為孔隙水壓（Pore Water Pressure）。
+                </p>
+
+                <h3 className="text-2xl font-bold text-slate-800 mb-4">物理演進過程</h3>
+                <ol className="list-decimal pl-6 space-y-4 mb-6 text-slate-700">
+                    <li><strong className="text-blue-700">先決條件：</strong> 發生於鬆散、飽和含水（Saturated）的無凝聚性砂土層。</li>
+                    <li><strong className="text-blue-700">不排水加載 (Undrained Loading)：</strong> 地震波（特別是 S 波）反覆施加循環剪應力（Cyclic shear stress）。因地震時間極短，孔隙水來不及排出，導致孔隙水壓 {"$u$"} 急遽上升。</li>
+                    <li><strong className="text-blue-700">有效應力歸零：</strong> 當 {"$u$"} 上升到等於上覆總應力 {"$\\sigma_n$"} 時，{"$\\sigma'$"} 降為 0。</li>
+                    <li><strong className="text-blue-700">抗剪強度喪失：</strong> 根據莫耳-庫倫破壞準則（Mohr-Coulomb Failure Criterion），土壤的抗剪強度 {"$\\tau = c + \\sigma' \\tan \\phi$"}。當 {"$\\sigma' \\to 0$"} 且砂土凝聚力 {"$c \\approx 0$"} 時，{"$\\tau \\to 0$"}。</li>
+                </ol>
+                <div className="p-4 bg-red-50 border-l-4 border-red-500 rounded text-red-800 font-medium">
+                    結果：土壤顆粒懸浮於水中，完全失去承載力，呈現流體狀態。導致建築物沉陷、傾斜（如 1964 日本新潟地震），或產生噴砂（Sand blows）與側向滑移（Lateral spreading）現象。
+                </div>
+            </div>
+        );
+
+        const Content8 = () => (
+            <div>
+                <h2 className="text-3xl font-bold text-blue-800 mb-6 border-b border-slate-200 pb-2">地震預報 (Forecasting) vs. 地震預測 (Prediction)</h2>
+                <p className="mb-6 text-slate-700 text-lg">在學術上，這兩個術語代表截然不同的統計與物理意義：</p>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                    <div className="bg-white p-6 rounded-lg shadow-sm border-t-4 border-blue-500">
+                        <h3 className="text-xl font-bold text-slate-800 mb-3 flex items-center"><i data-lucide="bar-chart" className="w-5 h-5 mr-2 text-blue-500"></i>預報 (Forecasting)</h3>
+                        <p className="mb-2 text-slate-600"><strong>本質：</strong> 長期的機率評估（Probabilistic）。</p>
+                        <p className="mb-2 text-slate-600"><strong>輸出：</strong> 在一段長時間內（如 30 年），某地區發生大於特定規模地震的<strong>機率</strong>。</p>
+                        <p className="text-slate-600"><strong>應用：</strong> 作為建築法規（Building codes）與保險費率訂定的基礎。目前的科學已能做到高準確度的區域預報。</p>
+                    </div>
+                    <div className="bg-white p-6 rounded-lg shadow-sm border-t-4 border-red-500">
+                        <h3 className="text-xl font-bold text-slate-800 mb-3 flex items-center"><i data-lucide="crosshair" className="w-5 h-5 mr-2 text-red-500"></i>預測 (Prediction)</h3>
+                        <p className="mb-2 text-slate-600"><strong>本質：</strong> 短期的確定性宣告（Deterministic）。</p>
+                        <p className="mb-2 text-slate-600"><strong>輸出：</strong> 精確給定未來地震發生的三要素：<strong>時間窗口、精確地點、特定規模區間</strong>。</p>
+                        <p className="text-slate-600"><strong>現狀：</strong> 受限於地殼系統的高度非線性（可能具混沌特性），目前仍無法實現穩定且可靠的短期預測。</p>
+                    </div>
+                </div>
+
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 mt-8">
+                    <h3 className="text-xl font-bold text-slate-800 mb-2">圖 1.2-14：認知不確定性 (Epistemic Uncertainty)</h3>
+                    <p className="text-slate-600 mb-4">圖中展示了採用不同規模上限（{"$M_{max}=7$"} vs {"$M_{max}=8$"}）與不同地動衰減模型（Toro vs Frankel）對預報結果的巨大影響。這突顯了因為物理模型不完美或資料不足所導致的預測誤差，必須透過邏輯樹（Logic Tree）方法加以量化。</p>
+                    <SeismicImage id="1.2-14" alt="圖 1.2-14 新馬德里地震帶不同參數模型機率預估比較圖" />
+                </div>
+            </div>
+        );
+
+        const Content9 = () => (
+            <div>
+                <h2 className="text-3xl font-bold text-blue-800 mb-6 border-b border-slate-200 pb-2">彈性回跳理論與 Seismic Gap</h2>
+                <p className="mb-4 text-slate-700 text-lg">Seismic Gap（地震空區）理論建立在 Reid 的<strong>彈性回跳理論 (Elastic Rebound Theory)</strong> 之上。板塊運動以固定速率累積剪切應變（Strain），當斷層面上的應力超過靜摩擦強度時，引發錯動釋放能量，隨後重新開始累積。</p>
+                
+                <InteractiveRebound />
+
+                <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-lg mb-8">
+                    <p className="text-blue-900"><strong>Seismic Gap 假說：</strong> 若某段活躍板塊邊界已經長時間未發生破裂（形成應變累積的空區），則該區塊發生大地震的機率將隨著時間推移而顯著升高。</p>
+                </div>
+
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 mb-8">
+                    <h3 className="text-xl font-bold text-slate-800 mb-2">圖 1.2-15：Pallett Creek 古地震紀錄</h3>
+                    <p className="text-slate-600 mb-4">此圖揭示了 Gap 理論的挑戰。沉積物碳定年顯示，大地震的發生並非完美的週期性（Periodic），而是呈現叢集性（Clustering）。標準差極大的重現期暗示斷層系統間存在複雜的應力轉移與觸發機制，打破了簡單假設。</p>
+                    <SeismicImage id="1.2-15" alt="圖 1.2-15 Pallett Creek 古地震沉積紀錄時間序列" />
+                </div>
+
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 mb-8">
+                    <h3 className="text-xl font-bold text-slate-800 mb-2">圖 1.2-16：1989年 Loma Prieta 地震</h3>
+                    <p className="text-slate-600 mb-4">圖面上半部顯示該斷層段在地震前處於異常平靜的 Seismic Gap。1989 年破裂似乎填補了這個空區，支持了假說。然而，其錯動機制包含大量垂直滑移，顯示空區破裂的三維物理行為遠比二維模型複雜。</p>
+                    <SeismicImage id="1.2-16" alt="圖 1.2-16 Loma Prieta 地震前後 San Andreas 斷層活動剖面" />
+                </div>
+            </div>
+        );
+
+        const Content10 = () => (
+            <div>
+                <h2 className="text-3xl font-bold text-blue-800 mb-6 border-b border-slate-200 pb-2">地震預測的物理方法與前兆探討</h2>
+                <p className="mb-6 text-slate-700 text-lg">儘管確定性預測尚未成功，物理學家仍積極尋找地震前兆（Precursors），也就是岩體在臨界破壞前（Critical failure）表現出的物理特性變異。主要方法包括：</p>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                    <div className="bg-white p-5 rounded-lg shadow-sm border border-slate-200">
+                        <h4 className="font-bold text-blue-700 mb-2">前震與微震活動異常</h4>
+                        <p className="text-sm text-slate-600">主破裂前會發生微裂隙生長（Micro-crack dilatancy）。觀察 {"$b$"} 值（表徵大小地震比例的斜率）的異常降低。</p>
+                    </div>
+                    <div className="bg-white p-5 rounded-lg shadow-sm border border-slate-200">
+                        <h4 className="font-bold text-blue-700 mb-2">震波速度比 ({"$V_p/V_s$"}) 變異</h4>
+                        <p className="text-sm text-slate-600">膨脹-擴散模型指出，岩體受壓產生微裂隙先導致未飽和使 {"$V_p$"} 下降；隨後流體重新飽和使 {"$V_p$"} 回升，地震常發生於恢復瞬間。</p>
+                    </div>
+                    <div className="bg-white p-5 rounded-lg shadow-sm border border-slate-200">
+                        <h4 className="font-bold text-blue-700 mb-2">地球化學異常 (如氡氣)</h4>
+                        <p className="text-sm text-slate-600">地殼微裂隙的擴展提供新通道，使岩體內的放射性氣體（氡氣 Radon）大量逸散進入地下水或大氣。</p>
+                    </div>
+                    <div className="bg-white p-5 rounded-lg shadow-sm border border-slate-200">
+                        <h4 className="font-bold text-blue-700 mb-2">地殼變形與應變監測</h4>
+                        <p className="text-sm text-slate-600">利用 GPS、InSAR 或鑽孔應變儀（Borehole strainmeter）監測斷層帶的非震滑移（Aseismic slip）或地表隆起。</p>
+                    </div>
+                </div>
+
+                <div className="bg-slate-800 text-slate-300 p-6 rounded-lg shadow-inner">
+                    <p className="font-bold text-white flex items-center mb-2">
+                        <i data-lucide="info" className="w-5 h-5 mr-2"></i>加州 Parkfield 預測實驗的教訓
+                    </p>
+                    <p className="text-sm italic">
+                        儘管部署了上述所有高精度儀器，原預測應於 1988±5 年發生的地震，卻遲至 2004 年才發生，且未觀測到任何明顯的短期前兆。這顯示地球的非均質性極大干擾了前兆的系統性觀測。
+                    </p>
+                </div>
+            </div>
+        );
+
+        const Content11 = () => (
+            <div>
+                <h2 className="text-3xl font-bold text-blue-800 mb-6 border-b border-slate-200 pb-2">矩張量分解與核子試爆的地震學監測</h2>
+                <p className="mb-4 text-slate-700 text-lg">地震學是國際《全面禁止核子試驗條約》(CTBT) 的核心監測技術。區分天然地震與地下核爆的關鍵，在於<strong>震源物理機制</strong>的根本差異。我們透過地震矩張量（Seismic Moment Tensor, {"$M_{ij}$"}）進行數學分解：</p>
+                
+                <div className="math-block">
+                    {"$$M_{ij} = M^{iso}_{ij} + M^{dev}_{ij}$$"}
+                </div>
+                
+                <div className="flex flex-col md:flex-row gap-6 mb-8 mt-6">
+                    <div className="flex-1 bg-white p-6 rounded-lg shadow-sm border-t-4 border-green-500">
+                        <h4 className="font-bold text-slate-800 mb-2">天然地震 (Earthquake)</h4>
+                        <p className="text-sm text-slate-600">本質為剪切斷層滑動（Shear faulting）。其張量的各向同性部分（Isotropic component, {"$M^{iso}$"}）趨近於零；主要由偏張量（Deviatoric component, {"$M^{dev}$"}）中的雙力偶（Double-Couple）主導。</p>
+                    </div>
+                    <div className="flex-1 bg-white p-6 rounded-lg shadow-sm border-t-4 border-orange-500">
+                        <h4 className="font-bold text-slate-800 mb-2">地下核爆 (Nuclear Explosion)</h4>
+                        <p className="text-sm text-slate-600">本質為體積膨脹。產生巨大的各向同性分量（即對角線跡 trace {" > 0"}），幾乎不產生純剪切錯動。</p>
+                    </div>
+                </div>
+
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 mb-8">
+                    <h3 className="text-xl font-bold text-slate-800 mb-2">圖 1.2-18：當量推估 (Yield Estimation)</h3>
+                    <p className="text-slate-600 mb-4">利用體波規模 {"$m_b$"} 推估核爆當量（Yield, {"$Y$"}），經驗公式為 {"$m_b = C + 0.75 \\log Y$"}。由於不同地質區域（如 Nevada vs. Kazakhstan）體波衰減係數 {"$C$"} 不同，必須精確校正場址效應。</p>
+                    <SeismicImage id="1.2-18" alt="圖 1.2-18 蘇聯地下核試爆當量歷史紀錄" />
+                </div>
+
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 mb-8">
+                    <h3 className="text-xl font-bold text-slate-800 mb-2">圖 1.2-19：波形特徵與 $m_b : M_s$ 判別法</h3>
+                    <ul className="list-disc pl-6 space-y-2 text-slate-600 mb-4">
+                        <li><strong>波形差異：</strong>天然地震產生強烈 S波與表面波。核爆產生極強 P波，缺乏產生強烈 S波的物理條件。</li>
+                        <li><strong>規模判別：</strong>將體波規模（{"$m_b$"}）繪於 X軸，表面波規模（{"$M_s$"}）繪於 Y軸。天然地震落在高 {"$M_s$"} 區；核爆偏向高 {"$m_b$"}、低 {"$M_s$"}，形成完美的統計分離線。</li>
+                    </ul>
+                    <SeismicImage id="1.2-19" alt="圖 1.2-19 天然地震與核爆波形及規模散佈圖" />
+                </div>
+            </div>
+        );
+
+        const App = () => {
+            const [activeTopic, setActiveTopic] = useState(1);
+
+            useEffect(() => {
+                if (window.lucide) {
+                    window.lucide.createIcons();
+                }
+                // Ensure MathJax re-typesets equations when content changes
+                if (window.MathJax && window.MathJax.typesetPromise) {
+                    window.MathJax.typesetPromise().catch((err) => console.log(err.message));
+                }
+            }, [activeTopic]);
+
+            const renderContent = () => {
+                switch(activeTopic) {
+                    case 1: return <Content1 />;
+                    case 2: return <Content2 />;
+                    case 3: return <Content3 />;
+                    case 4: return <Content4 />;
+                    case 5: return <Content5 />;
+                    case 6: return <Content6 />;
+                    case 7: return <Content7 />;
+                    case 8: return <Content8 />;
+                    case 9: return <Content9 />;
+                    case 10: return <Content10 />;
+                    case 11: return <Content11 />;
+                    default: return <Content1 />;
+                }
+            };
+
+            return (
+                <div className="flex h-screen overflow-hidden bg-slate-50 text-slate-800">
+                    {/* Sidebar (Light Theme) */}
+                    <div className="w-1/4 min-w-[280px] bg-white border-r border-slate-200 flex flex-col shadow-lg z-10">
+                        <div className="p-6 border-b border-slate-100 bg-slate-50">
+                            <h1 className="text-xl font-black text-blue-800 tracking-wide">
+                                震源物理與波動理論
+                            </h1>
+                            <p className="text-slate-500 text-sm mt-1 font-medium">Advanced Seismophysics</p>
+                        </div>
+                        <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-2">
+                            {topics.map(topic => (
+                                <button
+                                    key={topic.id}
+                                    onClick={() => setActiveTopic(topic.id)}
+                                    className={`w-full text-left px-4 py-3 rounded-lg flex items-center transition-all duration-200 group ${
+                                        activeTopic === topic.id 
+                                        ? 'bg-blue-600 shadow-md text-white font-bold' 
+                                        : 'hover:bg-slate-100 text-slate-600 hover:text-blue-700'
+                                    }`}
+                                >
+                                    <i data-lucide={topic.icon} className={`w-5 h-5 flex-shrink-0 mr-3 transition-colors ${
+                                        activeTopic === topic.id ? 'text-white' : 'text-slate-400 group-hover:text-blue-500'
+                                    }`}></i>
+                                    <span className="text-sm tracking-wide leading-tight">{topic.title}</span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Main Content (Light Theme) */}
+                    <div className="flex-1 overflow-y-auto custom-scrollbar relative scroll-smooth bg-slate-50">
+                        <div className="max-w-4xl mx-auto px-10 py-12 relative z-0">
+                            <div className="glass-panel rounded-2xl p-10 shadow-lg border-t-4 border-blue-600">
+                                {renderContent()}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
