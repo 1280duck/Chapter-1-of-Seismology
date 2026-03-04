@@ -113,8 +113,25 @@
             { id: 11, title: "11. 矩張量分解與核爆監測", icon: "crosshair" },
         ];
 
-        // 從 GitHub 讀取原始圖片檔案的網址產生器
-        const getImageUrl = (id) => `https://raw.githubusercontent.com/1280duck/Chapter-1-of-Seismology/main/Fig.%20${id}%20.png`;
+        // 針對不一致的檔名建立精確的對應字典 (處理 .png 前的空格問題)
+        const exactFileNames = {
+            "1.1-1": "Fig.%201.1-1%20.png",
+            "1.1-2": "Fig.%201.1-2%20.png",
+            "1.1-3": "Fig.%201.1-3.png",
+            "1.1-4": "Fig.%201.1-4.png",
+            "1.1-5": "Fig.%201.1-5.png",
+            "1.2-3": "Fig.%201.2-3.png",
+            "1.2-5": "Fig.%201.2-5.png",
+            "1.2-6": "Fig.%201.2-6%20.png",
+            "1.2-14": "Fig.%201.2-14.png",
+            "1.2-15": "Fig.%201.2-15.png",
+            "1.2-16": "Fig.%201.2-16.png",
+            "1.2-18": "Fig.%201.2-18.png",
+            "1.2-19": "Fig.%201.2-19%20.png"
+        };
+
+        // 使用 raw.githubusercontent.com 以確保載入的是純圖片而非 HTML 網頁
+        const getImageUrl = (id) => `https://raw.githubusercontent.com/1280duck/Chapter-1-of-Seismology/main/${exactFileNames[id]}`;
 
         // 具有錯誤處理與加載樣式的圖片元件
         const SeismicImage = ({ id, alt }) => {
@@ -611,7 +628,7 @@
 
                 <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 mb-8">
                     <h3 className="text-xl font-bold text-slate-800 mb-2">圖 1.2-18：當量推估 (Yield Estimation)</h3>
-                    <p className="text-slate-600 mb-4">利用體波規模 {"$m_b$"} 推估核爆當量（Yield, {"$Y$"}），經驗公式為 {"$m_b = C + 0.75 \\log Y$"}。由於不同地質區域（如 Nevada vs. Kazakhstan）體波衰減係數 {"$C$"} 不同，必須精確校正場址效應。</p>
+                    <p className="text-slate-600 mb-4">利用體波規模 {"$m_b$"}推估核爆當量（Yield, {"$Y$"}），經驗公式為 {"$m_b = C + 0.75 \\log Y$"}。由於不同地質區域（如 Nevada vs. Kazakhstan）體波衰減係數 {"$C$"} 不同，必須精確校正場址效應。</p>
                     <SeismicImage id="1.2-18" alt="圖 1.2-18 蘇聯地下核試爆當量歷史紀錄" />
                 </div>
 
